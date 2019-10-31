@@ -20,7 +20,7 @@ private
     m n o : ℕ
 
 infixr 6 1+_
-infix 4 _==_
+infix 4 _==_ _≟_ _==′_
 
 pattern 1+_ n = suc n
 
@@ -56,24 +56,24 @@ record Dec (X : Set) : Set where
     proof : Reflects X does
 open Dec public
 
-pattern yes x = true because ofʸ x
-pattern no x = false because ofⁿ x
+pattern yes x =  true because ofʸ  x
+pattern no ¬x = false because ofⁿ ¬x
 
 ⌊_⌋ : Dec X → Bool
 ⌊ X? ⌋ = does X?
 
 map′ : (X → Y) → (Y → X) → Dec X → Dec Y
-does (map′ f g X?) = does X?
+does  (map′ f g X?) = does X?
 proof (map′ f g (yes x)) = ofʸ (f x)
 proof (map′ f g (no ¬x)) = ofⁿ (¬x ∘ g)
 
 -- Example:
 
 _≟_ : (i j : Fin n) → Dec (i ≡ j)
-0′ ≟ 0′ = yes ≡.refl
-0′ ≟ (1+ j) = no (λ ())
-(1+ i) ≟ 0′ = no (λ ())
-(1+ i) ≟ (1+ j) = map′ (≡.cong 1+_) suc-injective (i ≟ j)
+0′   ≟ 0′   = yes ≡.refl
+0′   ≟ 1+ j = no λ ()
+1+ i ≟ 0′   = no λ ()
+1+ i ≟ 1+ j = map′ (≡.cong 1+_) suc-injective (i ≟ j)
 
 _==′_ : (i j : Fin n) → Bool
 i ==′ j = ⌊ i ≟ j ⌋
