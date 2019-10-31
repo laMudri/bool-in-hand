@@ -1,0 +1,3 @@
+name: bool-in-hand
+depend: standard-library
+include: src
