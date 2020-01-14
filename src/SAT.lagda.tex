@@ -1,0 +1,149 @@
+\begin{code}
+module SAT where
+
+  open import Data.Bool
+  open import Data.Bool.Properties
+  open import Data.Empty
+  open import Data.List
+  open import Data.List.Relation.Ternary.Interleaving.Propositional
+  open import Data.Unit
+  open import Function.Base
+  open import Level using (Level)
+
+  private
+    variable
+      x : Level
+      X : Set x
+
+  open import Relation.Nullary
+  open import Relation.Nullary.Construct.Add.Extrema
+  open import Relation.Nullary.Decidable
+  open import Relation.Nullary.Reflects as Ref
+  open import Relation.Binary using (Setoid)
+  open import Relation.Binary.Construct.Add.Extrema.NonStrict
+    {A = Bool} (λ _ _ → ⊥)
+  open import Relation.Binary.PropositionalEquality as ≡
+    using (_≡_; cong; cong₂; _≗_; _→-setoid_)
+
+  infixr 8 ¬*_
+  infixr 7 _∧*_
+  infixr 6 _∨*_
+
+  data Formula (X : Set x) : Set x where
+    var : (v : X) → Formula X
+    ¬*_ : Formula X → Formula X
+    ⊥* ⊤* : Formula X
+    _∨*_ _∧*_ : (P Q : Formula X) → Formula X
+
+  record Thinning {X : Set x} (xs : List X) (ys : List X) : Set x where
+    constructor mkTh
+    field
+      {dropped} : List X
+      interleaving : Interleaving xs dropped ys
+  open Thinning public
+
+  Var : List ⊤ → Set
+  Var xs = Thinning (tt ∷ []) xs
+
+  Assignment : List ⊤ → Set
+  Assignment xs = Var xs → Bool
+
+  []a : Assignment []
+  []a ()
+
+  _∷a_ : ∀ {xs} → Bool → Assignment xs → Assignment (tt ∷ xs)
+  (b ∷a bs) (mkTh (_ ∷ˡ _)) = b
+  (b ∷a bs) (mkTh (_ ∷ʳ i)) = bs (mkTh i)
+
+  module _ where
+
+    private
+      variable
+        a b : Level
+        A : Set a
+        B : Set b
+
+    infixl 4 _<*>_ _<$>_
+
+    _<$>_ : (A → B) → List A → List B
+    f <$> xs = Data.List.map f xs
+
+    _<*>_ : List (A → B) → List A → List B
+    [] <*> xs = []
+    (f ∷ fs) <*> xs = (f <$> xs) ++ (fs <*> xs)
+
+  all-assignments : {xs : List ⊤} → List (Assignment xs)
+  all-assignments {[]} = []a ∷ []
+  all-assignments {x ∷ xs} =
+    _∷a_ <$> false ∷ true ∷ [] <*> all-assignments {xs}
+
+  eval : ∀ {xs} → Formula (Var xs) → Assignment xs → Bool
+  eval (var v) bs = bs v
+  eval (¬* P) bs = not (eval P bs)
+  eval ⊥* bs = false
+  eval ⊤* bs = true
+  eval (P ∨* Q) bs = eval P bs ∨ eval Q bs
+  eval (P ∧* Q) bs = eval P bs ∧ eval Q bs
+
+  naïve-solve : {xs : List ⊤} → Formula (Var xs) → Bool
+  naïve-solve P = any (λ bs → eval P bs) all-assignments
+
+  data MaybePayload {a} (A : Set a) : Bool → Set a where
+    just-payload : A → MaybePayload A true
+    nothing-payload : MaybePayload A false
+
+  record Maybe {a} (A : Set a) : Set a where
+    constructor mkMaybe
+    field
+      tag : Bool
+      payload : MaybePayload A tag
+  open Maybe public
+
+  pattern just x = mkMaybe true (just-payload x)
+  pattern nothing = mkMaybe false nothing-payload
+
+  data SolvedWith {xs} (P : Formula (Var xs))
+                  : Maybe (Assignment xs) → Set where
+    sat : ∀ {bs} (q : eval P bs ≡ true) → SolvedWith P (just bs)
+    unsat : (pf : ∀ bs → eval P bs ≡ false) → SolvedWith P nothing
+
+  record Solved {xs} (P : Formula (Var xs)) : Set where
+    constructor mkSolved
+    field
+      tag : Maybe (Assignment xs)
+      payload : SolvedWith P tag
+  open Solved public
+
+  commute : Formula X → Formula X
+  commute (var v) = var v
+  commute (¬* P) = ¬* commute P
+  commute ⊥* = ⊥*
+  commute ⊤* = ⊤*
+  commute (P ∨* Q) = commute Q ∨* commute P
+  commute (P ∧* Q) = commute Q ∧* commute P
+
+  eval-commute : ∀ {xs} (P : Formula (Var xs)) bs →
+                 eval (commute P) bs ≡ eval P bs
+  eval-commute (var v) bs = ≡.refl
+  eval-commute (¬* P) bs = cong not (eval-commute P bs)
+  eval-commute ⊥* bs = ≡.refl
+  eval-commute ⊤* bs = ≡.refl
+  eval-commute (P ∨* Q) bs =
+    ≡.trans (cong₂ _∨_ (eval-commute Q bs) (eval-commute P bs))
+            (∨-comm (eval Q bs) (eval P bs))
+  eval-commute (P ∧* Q) bs =
+    ≡.trans (cong₂ _∧_ (eval-commute Q bs) (eval-commute P bs))
+            (∧-comm (eval Q bs) (eval P bs))
+
+  commute-preserves : ∀ {xs} {P : Formula (Var xs)} {ma} →
+                      SolvedWith P ma → SolvedWith (commute P) ma
+  commute-preserves {P = P} (sat {bs = bs} q) =
+    sat (≡.trans (eval-commute P bs) q)
+  commute-preserves {P = P} (unsat pf) =
+    unsat λ bs → ≡.trans (eval-commute P bs) (pf bs)
+
+  commute-solved : ∀ {xs} {P : Formula (Var xs)} →
+                   Solved P → Solved (commute P)
+  tag (commute-solved s) = tag s
+  payload (commute-solved s) = commute-preserves (payload s)
+\end{code}

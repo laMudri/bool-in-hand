@@ -1,0 +1,147 @@
+\documentclass[submission,copyright,creativecommons]{eptcs}
+\providecommand{\event}{SOS 2007} % Name of the event you are submitting to
+\usepackage{breakurl}             % Not needed if you use pdflatex only.
+\usepackage{underscore}           % Only needed if you use pdflatex.
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+
+\title{A Bool in the Hand Is Worth Two in the Bush}
+\author{
+  James Wood
+  \institute{Computer and Information Sciences\\
+    University of Strathclyde\\
+    Glasgow, United Kingdom}
+  \email{james.wood.100@strath.ac.uk}
+  \and
+  Robert Atkey
+  \institute{Computer and Information Sciences\\
+    University of Strathclyde\\
+    Glasgow, United Kingdom}
+  \email{robert.atkey@strath.ac.uk}
+}
+\def\titlerunning{Bool in Hand, Two in Bush}
+\def\authorrunning{J. Wood, R. Atkey}
+\begin{document}
+\maketitle
+
+\begin{abstract}
+A common practice in dependently typed programming is
+\emph{correct-by-construction} programming -- where we write programs that carry statically a lot of the information that is needed to verify them.
+For example, instead of having \texttt{filter} take a list of \texttt{xs} and
+produce a list of \texttt{xs}, we declare a property \texttt{P} and return, as
+well as the list of \texttt{xs}, a proof for each \texttt{x} in the returned
+list that it satisfies \texttt{P}.
+However, when we do correct-by-construction programming with fancy types, we
+sometimes lose sight of how these functions compute.
+In this paper, we rectify a long-standing bug in the Agda and Idris standard
+libraries in their definitions of \texttt{Dec} -- the type family that captures
+the decidability of a proposition -- so as to get back good computational
+properties.
+\end{abstract}
+
+\section{Introduction}
+
+% Where intrinsic verification meets extrinsic verification
+% Making intrinsic verification amenable to extrinsic verification
+
+In dependently typed programming, verification of programs may be done in two
+different styles: \emph{intrinsic} and \emph{extrinsic}.
+When verifying a program \emph{intrinsically}, that program will be written with an expressive type, expressing not only data representation, but also
+many of the program's correctness conditions.
+Correspondingly, the program itself will specify not only the intended
+operational behaviour, but also a proof that it fits the specification.
+On the other hand, when using the \emph{extrinsic} style, the program will
+have a relatively simple type, and supplementary definitions (lemmas) are
+needed to establish the correctness of the program.
+Both of these styles have advantages and disadvantages, and a typical program
+will be verified in a mixture of the two styles.
+
+With intrinsic and extrinsic styles forming a spectrum, we will occasionally
+find that two parts of a larger program have a mismatch in styles.
+This will particularly be the case when a reusable library is written in one
+style, and we want to write part of an application differently.
+In this paper, we spot some instances where this mismatch, combined with a
+common approach to intrinsic verification, cause unnecessary difficulty for the
+users of a library.
+We then proceed to suggest an approach to intrinsic verification which does not
+have these issues.
+
+We argue that our new approach to intrinsic verification is entirely
+backwards-compatible with the old approach.
+This claim is supported by the application of our technique to the definition
+and properties of \texttt{Dec} in Agda's standard library.
+These changes were made incrementally, in such a way that each change was an
+improvement, and the entire library continued to type-check after each change.
+
+\section{Problem}
+
+We are writing a library of vectors and matrices.
+We are going to do this in the style of a typical early undergraduate course,
+where we allow ourselves some dependent types for matrix dimensions, but are
+otherwise going to take an extrinsic verification approach.
+In particular, we want to define the identity matrix and matrix multiplication,
+and prove that these obey the usual algebraic laws.
+
+We will define matrices as functions from a pair of indices to a coefficient.
+In Agda, this means \texttt{Fin m * Fin n -> Carrier}, where \texttt{Carrier} is
+the type of elements of the semiring we are working in.
+
+In this setting, the $m \times m$ identity matrix is the function mapping equal
+indices to $1$ and unequal indices to $0$.
+To implement this, we look to the standard library to find a decision procedure
+for two \texttt{Fin m} elements.
+It behaves as if it were defined as follows.
+
+\dots dec eq on Fin
+
+We use this to implement the identity matrix.
+
+\dots first implementation of identity matrix
+
+When proving lemmas about matrix operations, we often proceed by induction on
+one of the indices of the result.
+When other indices of the same dimension appear, we are usually made to consider
+all of the cases where each index is either \texttt{zero} or \texttt{suc _}.
+In particular, we inspect all of the cases of the identity matrix:
+\texttt{1M zero zero}, \texttt{1M zero (suc j)}, \texttt{1M (suc i) zero}, and
+\texttt{1M (suc i) (suc j)}.
+We find, conveniently, that the first three compute, yielding $1$, $0$, and $0$, respectively.
+However, the \texttt{suc}-\texttt{suc} case is stuck.
+We have to manually deploy equality lemmas to show that this is
+\texttt{1M i j}.
+
+Note that if we had defined \texttt{1M} directly as follows, the
+\texttt{suc}-\texttt{suc} case would compute, as suggested by the final equation
+of the definition.
+
+\dots direct implementation of identity matrix
+
+\section{Solution}
+
+The \texttt{1M (suc i) (suc j)} case fails to compute because it is stuck on the
+decision \texttt{i =? j}.
+This is needed to compute \texttt{suc i =? suc j}.
+However, what we actually need for the identity matrix is only whether the
+decision is \texttt{yes} or \texttt{no}, and not the proofs that these were the
+correct decision.
+This is what \texttt{floor} leaves us with.
+What we can see by inspection of the decision procedure is that
+\texttt{suc i =? suc j} is going to be \texttt{yes _} exactly when
+\texttt{i =? j} is \texttt{yes _}.
+If we could observe this as a definitional equality, we would also get
+\texttt{1M (suc i) (suc j)} to be definitionally equal to \texttt{1M i j}, as we wanted.
+
+Our solution is to make explicit the invariant that a \texttt{yes _} is mapped
+to another \texttt{yes _} and a \texttt{no _} is mapped to another
+\texttt{no _}.
+To do this, we start with a boolean value, encoding whether the decision result
+is a \texttt{yes _} or a \texttt{no _}.
+We then pair this with a proof that this decision was correct.
+Crucially, because the computation of the first half of a pair is independent of
+the second half, it is possible to express in a way visible to definitional equality that being a \texttt{yes _} is conserved.
+
+\nocite{*}
+\bibliographystyle{eptcs}
+\bibliography{generic}
+\end{document}
