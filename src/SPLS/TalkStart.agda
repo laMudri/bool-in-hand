@@ -1,4 +1,4 @@
-module TalkEnd where
+module SPLS.TalkStart where
 
 open import Algebra
 open import Data.Bool hiding (_≟_)
@@ -20,7 +20,7 @@ private
     m n o : ℕ
 
 infixr 6 1+_
-infix 4 _==_ _≟_ _==′_
+infix 4 _==_
 
 pattern 1+_ n = suc n
 
@@ -45,38 +45,17 @@ SPLS October 2019, Glasgow
 
 -- General stuff:
 
-data Reflects (X : Set) : Bool → Set where
-  ofʸ : ( x :   X) → Reflects X true
-  ofⁿ : (¬x : ¬ X) → Reflects X false
-
-record Dec (X : Set) : Set where
-  constructor _because_
-  field
-    does : Bool
-    proof : Reflects X does
-open Dec public
-
-pattern yes x =  true because ofʸ  x
-pattern no ¬x = false because ofⁿ ¬x
+-- In Haskell:
+--   data Dec X = Yes X | No (Not X)
+data Dec (X : Set) : Set where
+  yes : ( x :   X) → Dec X
+  no  : (¬x : ¬ X) → Dec X
 
 ⌊_⌋ : Dec X → Bool
-⌊ X? ⌋ = does X?
-
-map′ : (X → Y) → (Y → X) → Dec X → Dec Y
-does  (map′ f g X?) = does X?
-proof (map′ f g (yes x)) = ofʸ (f x)
-proof (map′ f g (no ¬x)) = ofⁿ (¬x ∘ g)
+⌊ yes x ⌋ = true
+⌊ no ¬x ⌋ = false
 
 -- Example:
-
-_≟_ : (i j : Fin n) → Dec (i ≡ j)
-0′   ≟ 0′   = yes ≡.refl
-0′   ≟ 1+ j = no λ ()
-1+ i ≟ 0′   = no λ ()
-1+ i ≟ 1+ j = map′ (≡.cong 1+_) suc-injective (i ≟ j)
-
-_==′_ : (i j : Fin n) → Bool
-i ==′ j = ⌊ i ≟ j ⌋
 
 _==_ : (i j : Fin n) → Bool
 0′   == 0′   = true
@@ -117,7 +96,7 @@ module MatrixStuff (semiring : Semiring · ·) where
   -- ⎜╭╮  \  ⎟
   -- ⎝╰╯    1⎠
   1ₘ : Matrix n n
-  1ₘ i j = if does (i ≟ j) then 1# else 0#
+  1ₘ i j = if i == j then 1# else 0#
 
   ∑ : Vector n → Coeff
   ∑ {0′} v = 0#
@@ -136,9 +115,6 @@ module MatrixStuff (semiring : Semiring · ·) where
     x * (v 0′ + ∑ (v ∘ 1+_))           ≈⟨ distribˡ _ _ _ ⟩
     x * v 0′ + x * ∑ (v ∘ 1+_)         ≈⟨ +-cong refl (*-distribˡ-∑ {n} _ _) ⟩
     x * v 0′ + (∑ \ i → x * v (1+ i))  ∎
-
-  test : (i j : Fin n) → Set
-  test i j = {!1ₘ (1+ i) (1+ j) ,′ 1ₘ i j!}
 
   *ₘ-identityˡ : (M : Matrix m n) → 1ₘ *ₘ M ≈ₘ M
   *ₘ-identityˡ {m = 1+ m} M .get 0′ k = begin

@@ -1,4 +1,4 @@
-module TalkExtra where
+module SPLS.TalkEnd where
 
 open import Algebra
 open import Data.Bool hiding (_≟_)
@@ -20,7 +20,7 @@ private
     m n o : ℕ
 
 infixr 6 1+_
-infix 4 _==_ _≟_
+infix 4 _==_ _≟_ _==′_
 
 pattern 1+_ n = suc n
 
@@ -59,19 +59,13 @@ open Dec public
 pattern yes x =  true because ofʸ  x
 pattern no ¬x = false because ofⁿ ¬x
 
+⌊_⌋ : Dec X → Bool
+⌊ X? ⌋ = does X?
+
 map′ : (X → Y) → (Y → X) → Dec X → Dec Y
-does  (map′ f g    X?  ) = does X?
+does  (map′ f g X?) = does X?
 proof (map′ f g (yes x)) = ofʸ (f x)
 proof (map′ f g (no ¬x)) = ofⁿ (¬x ∘ g)
-
-det : ∀ {b b′} → Reflects X b → Reflects X b′ → b ≡ b′
-det (ofʸ  x) (ofʸ  x′) = ≡.refl
-det (ofʸ  x) (ofⁿ ¬x′) = ⊥-elim (¬x′ x)
-det (ofⁿ ¬x) (ofʸ  x′) = ⊥-elim (¬x x′)
-det (ofⁿ ¬x) (ofⁿ ¬x′) = ≡.refl
-
-does-≡ : (X → Y) → (Y → X) → (X? : Dec X) (Y? : Dec Y) → does X? ≡ does Y?
-does-≡ f g X? Y? = det (map′ f g X? .proof) (Y? .proof)
 
 -- Example:
 
@@ -80,6 +74,9 @@ _≟_ : (i j : Fin n) → Dec (i ≡ j)
 0′   ≟ 1+ j = no λ ()
 1+ i ≟ 0′   = no λ ()
 1+ i ≟ 1+ j = map′ (≡.cong 1+_) suc-injective (i ≟ j)
+
+_==′_ : (i j : Fin n) → Bool
+i ==′ j = ⌊ i ≟ j ⌋
 
 _==_ : (i j : Fin n) → Bool
 0′   == 0′   = true
@@ -92,9 +89,6 @@ _==_ : (i j : Fin n) → Bool
 ==-sym 0′     (1+ j) = ≡.refl
 ==-sym (1+ i) 0′     = ≡.refl
 ==-sym (1+ i) (1+ j) = ==-sym i j
-
-≟-sym : (i j : Fin n) → does (i ≟ j) ≡ does (j ≟ i)
-≟-sym i j = does-≡ ≡.sym ≡.sym (i ≟ j) (j ≟ i)
 
 module MatrixStuff (semiring : Semiring · ·) where
   open Semiring semiring
